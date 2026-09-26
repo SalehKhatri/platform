@@ -1135,6 +1135,10 @@ export default function DueDateExceptions() {
     }
     return deadlines;
   }, [studentData]);
+  const memberIdsByGroup = useMemo(
+    () => new Map((groups ?? []).map((g) => [g.id, g.assignment_groups_members.map((m) => m.profile_id)])),
+    [groups]
+  );
   const bulkTargets = useMemo(() => {
     const targets = new Map<string, BulkExceptionTarget>();
     for (const original of selectedRows) {
@@ -1143,13 +1147,16 @@ export default function DueDateExceptions() {
       targets.set(key, {
         key,
         student_id: original.student.id,
+        member_student_ids: original.group
+          ? (memberIdsByGroup.get(original.group.id) ?? [original.student.id])
+          : [original.student.id],
         assignment_group_id: original.group?.id ?? null,
         currentFinalDueDate: original.finalDueDate,
         hasMixedMemberDeadlines: (original.group ? (memberDeadlinesByGroup.get(original.group.id)?.size ?? 0) : 0) > 1
       });
     }
     return Array.from(targets.values());
-  }, [selectedRows, memberDeadlinesByGroup]);
+  }, [selectedRows, memberDeadlinesByGroup, memberIdsByGroup]);
   const [bulkAction, setBulkAction] = useState<"extend" | "set" | null>(null);
 
   const tableRows = table.getRowModel().rows;

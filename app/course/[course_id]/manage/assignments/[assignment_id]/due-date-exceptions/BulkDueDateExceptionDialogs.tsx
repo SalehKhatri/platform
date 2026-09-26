@@ -25,6 +25,8 @@ type DueDateExceptionInsert = Database["public"]["Tables"]["assignment_due_date_
 export type BulkExceptionTarget = {
   key: string;
   student_id: string | null;
+  /** Every student whose due date this target's exception moves: the group's members, or the student. */
+  member_student_ids: string[];
   assignment_group_id: number | null;
   currentFinalDueDate: Date | null;
   /** Group members whose lab sections give them different current deadlines. */
@@ -142,7 +144,9 @@ const MAX_NAMED_FINALIZED = 5;
  * early. `finalize_submission_early` records finalization as a negative exception on the student,
  * or on the group for a group member, and the autograder only honors it once the due date has
  * passed. An extension moves the due date back out, so it would silently reopen submissions.
- * Match the server's scoping: a solo target by student_id, a group target by assignment_group_id.
+ * A group target also counts as finalized when any member holds their own negative exception
+ * (for example, one recorded before they joined the group): calculate_final_due_date adds the
+ * group's exceptions to the member's own, so a group extension would move that member's due date.
  */
 function useFinalizedTargets(targets: BulkExceptionTarget[], assignmentId: number, includeFinalized: boolean) {
   const { assignmentDueDateExceptions } = useCourseController();
@@ -160,7 +164,8 @@ function useFinalizedTargets(targets: BulkExceptionTarget[], assignmentId: numbe
       else if (exception.student_id) students.add(exception.student_id);
     }
     const isFinalized = (t: BulkExceptionTarget) =>
-      t.assignment_group_id ? groups.has(t.assignment_group_id) : !!t.student_id && students.has(t.student_id);
+      (!!t.assignment_group_id && groups.has(t.assignment_group_id)) ||
+      t.member_student_ids.some((id) => students.has(id));
     const finalized = targets.filter(isFinalized);
     const eligible = includeFinalized ? targets : targets.filter((t) => !isFinalized(t));
     return { finalized, eligible };

@@ -289,6 +289,24 @@ test.describe("Due date exceptions table", () => {
     ]);
   });
 
+  test("bulk add extension skips a group when one member finalized on their own", async ({ page }) => {
+    // A member-level finalization (e.g. from before they joined) still counts: a group exception
+    // is added to the member's own, so extending the group would move that member's due date.
+    await finalizeEarly(alpha);
+    await openPage(page);
+    await page.getByRole("button", { name: "All matching filters" }).click();
+    await page.getByRole("button", { name: "Add extension" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByTestId("bulk-finalized-warning")).toContainText("1 group has finalized early");
+    await dialog.getByLabel("Hours Extended").fill("24");
+    await dialog.getByRole("button", { name: "Add Due Date Exceptions" }).click();
+
+    await expect.poll(async () => (await exceptions()).length).toBe(1);
+    expect(await exceptions()).toEqual([
+      expect.objectContaining({ student_id: charlie.private_profile_id, assignment_group_id: null, hours: 24 })
+    ]);
+  });
+
   test("counts a group member's own exception and refuses one due date for a mixed group", async ({ page }) => {
     const { error } = await supabase.from("assignment_due_date_exceptions").insert({
       class_id: course.id,
